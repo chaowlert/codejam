@@ -1,0 +1,67 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let memoize f =
+    let dict = Dictionary<_,_>()
+    fun n ->
+        match dict.TryGetValue(n) with
+        | true, v -> v
+        | _       -> let temp = f(n)
+                     dict.Add(n, temp)
+                     temp
+
+let inline (<.) a b =
+    a, b
+let inline (.<) (a, b) c =
+    a < b && b < c
+
+let solve names prices =
+    let prices = Array.concat [[|0|]; prices; [|101|]]
+    let priceOf = Array.get prices
+    let nameOf n = Array.get names (n-1)
+
+    let rec minGuess =
+        let minGuessX (min, max) =
+            let inside = { min+1..max-1 } |> Seq.filter (fun i -> priceOf min <. priceOf i .< priceOf max)
+            if Seq.isEmpty inside then
+                let newSet = { min+1..max-1 } |> Seq.map nameOf
+                                              |> Set.ofSeq
+                newSet.Count, newSet
+            else
+                seq {
+                    for i in inside do
+                    let leftCount,leftSet = minGuess (min, i)
+                    let rightCount,rightSet = minGuess (i, max)
+                    yield leftCount+rightCount, leftSet+rightSet
+                } |> Seq.min
+        memoize minGuessX
+
+    let _,set = minGuess (0, prices.Length - 1)
+    String.Join(" ", set)
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let names = text.Split ' '
+        let text2 = input.ReadLine()
+        let prices = text2.Split ' ' |> Seq.map int
+                                     |> Seq.toArray
+        let answer = solve names prices
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

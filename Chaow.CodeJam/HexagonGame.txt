@@ -1,0 +1,97 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+open Chaow.Algorithms
+
+let memoize f =
+    let dict = Dictionary<_,_>()
+    fun n ->
+        match dict.TryGetValue(n) with
+        | true, v -> v
+        | _       -> let temp = f(n)
+                     dict.Add(n, temp)
+                     temp
+
+let getBoard =
+    let getBoardX size =
+        seq {
+            let mid = (size + 1) / 2
+            let width = (size * 2) - 1
+            for row = 1 to size do
+            let rowPadding = abs (mid - row)
+            for col in { 1+rowPadding .. 2 .. width-rowPadding } do
+            yield col,row
+        } |> Seq.append [0,0]
+          |> Seq.toArray
+
+    memoize getBoardX
+
+let finishPos =
+    let finishPosX size =
+        let board = getBoard size
+        let mid = (size + 1) / 2
+        let finish1 =
+            let col,row = board.[1]
+            [|  for i = 0 to size-1 do
+                yield col+i,row+i |]
+        let finish2 =
+            let col,row = board.[mid]
+            [|  for i = 0 to size-1 do
+                yield col-i,row+i |]
+        let finish3 =
+            [|  for i = 0 to size-1 do
+                yield 1 + (i*2),mid |]
+        [| finish1; finish2; finish3 |]
+    memoize finishPosX
+
+let (<->) (x1,y1) (x2,y2) =
+    let deltaY = abs (y1 - y2)
+    let deltaX = abs (x1 - x2) - deltaY |> max 0
+    deltaY + (deltaX / 2)
+
+let solve nums costs =
+    let size = Array.length nums
+    let board = getBoard size
+    let start = nums |> Seq.map (Array.get board)
+                     |> Seq.zip costs
+                     |> Seq.cache
+    let finish = finishPos size
+
+    let minCost finPos =
+        let matrix = 
+            array2D [|
+                for cost, pos in start do
+                yield Array.map (fun pos2 -> (pos <-> pos2) * cost) finPos
+            |]
+        let sol = HungarianAlgorithm.FindAssignments (Array2D.copy matrix)
+        sol |> Seq.mapi (Array2D.get matrix)
+            |> Seq.sum
+
+    finish |> Seq.map minCost
+           |> Seq.min
+           |> string
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let nums = text.Split ' ' |> Array.map int
+        let text2 = input.ReadLine()
+        let costs = text2.Split ' ' |> Array.map int
+        let answer = solve nums costs
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

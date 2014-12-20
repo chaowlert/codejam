@@ -1,0 +1,56 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let solve t set =
+    let rec runTrip startTime station set =
+        let findFn (dep,_,i,_) = dep >= startTime && i = station
+        match Seq.tryFind findFn set with
+        | None     -> set
+        | Some(it) -> let _,arr,_,_ = it
+                      runTrip (arr+t) (not station) (Set.remove it set)
+
+    let rec startTrip a b set =
+        if set = Set.empty
+        then a, b
+        else let startTime,_,station,_ = set.MinimumElement
+             let newSet = runTrip startTime station set
+             if station
+             then startTrip (a+1) b newSet
+             else startTrip a (b+1) newSet
+
+    let a, b = startTrip 0 0 set
+    sprintf "%A %A" a b
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let t = input.ReadLine() |> float
+                                 |> TimeSpan.FromMinutes
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let na = int split.[0]
+        let nb = int split.[1]
+        let createFn i j = 
+            let text = input.ReadLine()
+            let split = text.Split ' '
+            TimeSpan.Parse split.[0], TimeSpan.Parse split.[1], i, j
+        let setA = Seq.init na (createFn true) |> Set.ofSeq
+        let setB = Seq.init nb (createFn false) |> Set.ofSeq
+        let answer = solve t (setA+setB)
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

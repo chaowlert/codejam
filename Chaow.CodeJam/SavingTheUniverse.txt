@@ -1,0 +1,41 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let solve s list =
+    let rec run list set times = 
+        match list with
+        | []         -> times
+        | head::tail -> 
+            let newSet = Set.add head set
+            if Set.count newSet = s
+            then run tail (Set.singleton head) (times+1)
+            else run tail newSet times
+
+    run list Set.empty 0 |> string
+
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let s = input.ReadLine() |> int
+        let se = Seq.init s (fun _ -> input.ReadLine()) |> Set.ofSeq
+        let q = input.ReadLine() |> int
+        let list = List.init q (fun _ -> input.ReadLine())
+        let answer = solve s list
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

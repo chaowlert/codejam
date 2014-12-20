@@ -1,0 +1,63 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let solve p1 p2 p3 =
+    let area (x1, y1) (x2, y2) =
+        let deltaX = x1 - x2
+        let deltaY = y1 - y2
+        (deltaX * deltaX) + (deltaY * deltaY)
+       
+    let typeSide areas =
+        let count = areas |> Seq.distinct
+                          |> Seq.length
+        match count with
+        | 1 -> "equilateral"
+        | 2 -> "isosceles"
+        | 3 -> "scalene"
+
+    let typeAngle areas =
+        let sorted = Array.sort areas
+        match compare (sorted.[0] + sorted.[1]) sorted.[2] with
+        | -1 -> "obtuse"
+        | 0  -> "right"
+        | 1  -> "acute"
+
+    let (|Collinear|Triangle|) ((x1, y1), (x2, y2), (x3, y3)) =
+        if (x1 - x2) * (y1 - y3) = (x1 - x3) * (y1 - y2) 
+        then Collinear
+        else Triangle
+
+    match p1, p2, p3 with
+    | Collinear -> "not a triangle"
+    | Triangle  -> let areas = [| area p1 p2; area p2 p3; area p3 p1 |]
+                   sprintf "%s %s triangle" (typeSide areas) (typeAngle areas)
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let x1 = int split.[0]
+        let y1 = int split.[1]
+        let x2 = int split.[2]
+        let y2 = int split.[3]
+        let x3 = int split.[4]
+        let y3 = int split.[5]
+        let answer = solve (x1, y1) (x2, y2) (x3, y3)
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

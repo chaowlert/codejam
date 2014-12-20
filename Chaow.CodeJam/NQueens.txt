@@ -1,0 +1,15 @@
+﻿let queens n = let rec solve qs = function
+               | []    -> Seq.singleton qs
+               | h::ts -> let filter q i = List.filter (fun u -> u<>q && abs(u-q)<>i+1)
+                          h |> Seq.collect (fun q -> solve (q::qs) (List.mapi (filter q) ts))
+               solve [] (List.replicate n [1..n])
+
+let print qs = let space n = String.replicate n "_ "
+               for q in qs do
+               printfn "%sQ %s" (space (q-1)) (space (List.length qs-q))
+
+[<EntryPoint>]
+let main argv = 
+    queens 8 |> Seq.head
+             |> print
+    0

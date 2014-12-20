@@ -1,0 +1,91 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let memoize f =
+    let dict = Dictionary<_,_>()
+    fun n ->
+        match dict.TryGetValue(n) with
+        | true, v -> v
+        | _       -> let v = f(n)
+                     dict.Add(n, v)
+                     v
+
+let rec maxF = 
+    let maxFx (d, b) =
+        let result = 1L + maxF (d - 1, b) + maxF (d - 1, b - 1)
+        if result >= 4294967296L
+        then -1L
+        else result
+    let cache = memoize maxFx
+    function
+    | d, 1 -> int64 d
+    | d, b when d = b -> (1L <<< b) - 1L
+    | d, b -> cache (d, b)
+
+let isOverflow = 
+    let maxD b =
+        let rec brute d =
+            match maxF (d, b) with
+            | -1L -> d - 1
+            | _   -> brute (d + 1)
+        brute (b + 1)
+    let cache = memoize maxD
+    function
+    | d, 1 -> false
+    | d, b when b > 32 -> true
+    | d, b -> d > cache b
+
+let rec solveF d b =
+    if d < b                then solveF d d
+    elif isOverflow (d, b)  then -1L
+    else maxF (d, b)
+
+let solveD f b =
+    let rec binarySearch low hi =
+        if low = hi 
+        then low
+        else 
+            let mid = (low + hi) / 2
+            let maxF = solveF mid b
+            if maxF = -1L || maxF >= int64 f
+            then binarySearch low mid
+            else binarySearch (mid + 1) hi
+    binarySearch 1 f
+                  
+let solveB f d =
+    let rec brute b =
+        let maxF = solveF d b
+        if maxF = -1L || maxF >= int64 f 
+        then b
+        else brute (b + 1)
+    brute 1
+
+let solve f d b = 
+    sprintf "%i %i %i" (solveF d b) (solveD f b) (solveB f d)                  
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let f = int split.[0]
+        let d = int split.[1]
+        let b = int split.[2]
+        let answer = solve f d b
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

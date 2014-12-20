@@ -1,0 +1,43 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let (.*.) (a1, b1) (a2, b2) =
+    a1*a2 + b1*b2*5, a1*b2 + a2*b1
+let (.%.) (a, b) m =
+    a % m, b % m
+
+let modPow = 
+    let rec modPowX num = function
+        | 1   -> num
+        | exp -> let result = modPowX (num .*. num .%. 1000) (exp >>> 1)
+                 if exp &&& 1 = 1
+                 then num .*. result .%. 1000
+                 else result
+    modPowX
+
+let solve exp =
+    let a, _ = modPow (3,1) exp
+    (a*2 + 999) % 1000 |> sprintf "%03d"
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let exp = input.ReadLine() |> int
+        let answer = solve exp
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

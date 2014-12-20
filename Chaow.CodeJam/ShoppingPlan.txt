@@ -1,0 +1,169 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+open System.Diagnostics
+open System.Threading.Tasks
+
+let memoize f =
+    let dict = Dictionary<_,_>()
+    fun n ->
+        match dict.TryGetValue(n) with
+        | true, v -> v
+        | _       -> let temp = f(n)
+                     dict.Add(n, temp)
+                     temp
+
+type Store = { id:int; position:float*float; items:Map<int,float>; costToHome:float }
+let homeStore = { id=0; position=0.0,0.0; items=Map.empty; costToHome=0.0 }
+
+let (<->) (x1, y1) (x2, y2) =
+    let deltaX = x1 - x2
+    let deltaY = y1 - y2
+    sqrt (deltaX*deltaX + deltaY*deltaY)
+
+let solve gas allItems freshMask stores = 
+    let storeMap =
+        let storeMapX itemId =
+            let itemPrices =
+                seq {
+                    for store in stores do
+                    let item = store.items.TryFind(itemId)
+                    if item.IsSome then
+                    yield store,item.Value
+                } |> Seq.cache
+
+            let filterFn (store1,price1) =
+                let forallFn =
+                    if itemId &&& freshMask > 0 then
+                        fun (store2,price2) -> price1 <= price2 + (store1.position <-> store2.position)*gas 
+                                                                + store2.costToHome 
+                                                                + store1.costToHome
+                    else
+                        fun (store2,price2) -> price1 <= price2 + (store1.position <-> store2.position)*gas*2.0
+                itemPrices |> Seq.forall forallFn
+
+            itemPrices |> Seq.filter filterFn
+                       |> Seq.map (fun (store,price) -> store.id,(store,price))
+                       |> Map.ofSeq
+        memoize storeMapX
+
+    let rec findStores =
+        let findStoresX (storeId, itemId) =
+            seq {
+                let store1 = Array.get stores storeId
+                let map = storeMap itemId
+                let item1 = Map.tryFind storeId map
+                for kvp in map do
+                let store2,price2 = kvp.Value
+                if storeId = store2.id || item1.IsNone || snd item1.Value > price2 then
+                let travel = (store1.position <-> store2.position)*gas
+                yield store2.id, itemId, price2 + travel
+            } |> Seq.cache
+        let cached = memoize findStoresX
+        fun storeId itemId -> cached (storeId, itemId)
+
+    let isFresh itemId = itemId &&& freshMask > 0
+    let dryItems = allItems |> Seq.filter (not << isFresh)
+                            |> Seq.cache
+    let freshItems = allItems |> Seq.filter isFresh
+                              |> Seq.cache
+
+    let rec findMinCost =
+        let findMinCostX (mask, id, home) =
+            let filterFn itemId = mask &&& itemId > 0
+            let validFreshItems = Seq.filter filterFn freshItems
+            let validDryItems = Seq.filter filterFn dryItems
+
+            let mapFn (storeId, itemId, itemCost) =
+                let newHome = id = 0 || (home && id = storeId)
+                itemCost + findMinCost (mask ^^^ itemId, storeId, newHome)
+
+            match mask, id, home with
+            | 0, id, _ -> stores.[id].costToHome
+            | mask, 0, _ ->
+                let items = if mask &&& freshMask > 0 
+                            then validFreshItems |> Seq.truncate 1
+                            else validDryItems
+                items |> Seq.collect (findStores id)
+                      |> Seq.map mapFn
+                      |> Seq.min
+            | mask, id, home -> 
+                let freshItemStores =
+                    seq {
+                        if mask &&& freshMask > 0 then
+                        let costToHome = stores.[id].costToHome
+                        yield 0, 0, costToHome
+                        if home then
+                        for itemId in validFreshItems do
+                        let result = Map.tryFind id (storeMap itemId)
+                        if result.IsSome then
+                        yield id, itemId, snd result.Value
+                    }
+                validDryItems |> Seq.collect (findStores id)
+                              |> Seq.append freshItemStores
+                              |> Seq.map mapFn
+                              |> Seq.min
+        memoize findMinCostX
+
+    let minCost = findMinCost (Seq.sum allItems, 0, false)
+    sprintf "%.7f" minCost
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let sw = Stopwatch.StartNew()
+    let cases = input.ReadLine() |> int
+    let tasks = List<Task<int*string>>(cases)
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let itemCount = int split.[0]
+        let storeCount = int split.[1]
+        let gas = float split.[2]
+
+        let itemMapFn i (item:string) =
+            let index = 1 <<< i
+            if item.EndsWith("!")
+            then (item.Substring(0, item.Length - 1), index), true
+            else (item, index), false
+            
+        let itemList = input.ReadLine().Split ' ' |> Seq.mapi itemMapFn
+                                                  |> Seq.cache
+        let allItems = itemList |> Seq.map (fst >> snd)
+                                |> Seq.cache
+        let freshMask = itemList |> Seq.filter snd
+                                 |> Seq.sumBy (fst >> snd)
+        let itemMap = itemList |> Seq.map fst
+                               |> Map.ofSeq
+
+        let storeInit i =
+            let storeLine = input.ReadLine().Split ' '
+            let position = (float storeLine.[0], float storeLine.[1])
+            let items = storeLine |> Seq.skip 2
+                                  |> Seq.map (fun s -> s.Split ':')
+                                  |> Seq.map (fun it -> Map.find it.[0] itemMap, float it.[1])
+                                  |> Map.ofSeq
+            { id=i+1; position=position; items=items; costToHome=(position <-> homeStore.position) * gas }
+
+        let stores = Array.init storeCount storeInit |> Array.append [|homeStore|]
+        
+        let answer = async { return i, solve gas allItems freshMask stores } |> Async.StartAsTask
+        //answer.Wait()
+        tasks.Add(answer)
+
+    for task in tasks do
+        let i, answer = task.Result
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+    printfn "%A" sw.Elapsed
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

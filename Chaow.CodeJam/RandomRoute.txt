@@ -1,0 +1,78 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+type Road = { id:int; origin:string; dest:string; distant:int }
+
+let solve start roads =
+    let rec explore ways =
+        let newWays = 
+            seq {
+                for way in ways do
+                for road in roads do
+                let head::tails = way
+                if road.origin = head.dest then
+                if Seq.forall (fun it -> it.origin <> road.dest) way then
+                yield road::way
+            } |> Seq.cache
+        if Seq.isEmpty newWays
+        then ways
+        else explore newWays |> Seq.append ways 
+                             |> Seq.cache
+
+    let destinations = roads |> Seq.filter (fun it -> it.origin = start)
+                             |> Seq.map (List.replicate 1)
+                             |> explore
+                             |> Seq.groupBy (fun (head::tails) -> head.dest)
+    
+    let destScore = 1.0 / float (Seq.length destinations)
+
+    let collectFn ways =
+        let shortestWays = ways |> Seq.groupBy (List.sumBy (fun it -> it.distant))
+                                |> Seq.minBy fst
+                                |> snd
+                                |> Seq.cache
+        let wayScore = 1.0 / float (Seq.length shortestWays)
+        shortestWays |> Seq.collect id
+                     |> Seq.map (fun it -> it.id, destScore * wayScore)
+
+    let probs = query {
+                    for _, ways in destinations do
+                    for id, score in collectFn ways do
+                    groupValBy score id into g
+                    select (g.Key, g.Sum())
+                } |> Map.ofSeq
+    
+    let ans = roads |> Seq.map (fun road -> probs.TryFind(road.id))
+                    |> Seq.map (fun prob -> if prob.IsNone then 0.0 else prob.Value)
+                    |> Seq.map (fun prob -> sprintf "%.7f" prob)
+    String.Join(" ", ans)
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let info = text.Split ' '
+        let roadCount = int info.[0]
+        let start = info.[1]
+        let roadInit i =
+            let split = input.ReadLine().Split ' '
+            { id=i; origin=split.[0]; dest=split.[1]; distant=int split.[2] }
+        let roads = Array.init roadCount roadInit
+        let answer = solve start roads
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

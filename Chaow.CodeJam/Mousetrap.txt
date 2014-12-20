@@ -1,0 +1,51 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+open Chaow.Algorithms
+
+let solve k list =
+    let array = Array.create k 1
+    let binTree = BinaryIndexedTree(array)
+
+    let dict = Dictionary()
+    for d in list do
+        dict.Add(d, 0)
+
+    let mutable index = 0
+    let mutable len = k
+    for d = 1 to k do
+        index <- (index + d - 1) % len
+        len <- len - 1
+        let ki = binTree.Find(index+1)
+        binTree.Add(ki, -1)
+        if dict.ContainsKey(ki + 1) then
+            dict.[ki + 1] <- d
+
+    let results = list |> Seq.map (fun d -> dict.[d])
+    String.Join(" ", results)
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let k = input.ReadLine() |> int
+        let list = input.ReadLine().Split(' ')
+                   |> Seq.skip 1
+                   |> Seq.map int
+                   |> Seq.toArray
+        let answer = solve k list
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

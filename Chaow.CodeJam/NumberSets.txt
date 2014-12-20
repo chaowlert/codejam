@@ -1,0 +1,51 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+open System.Collections
+open System.Diagnostics
+open Chaow.Numeric.Sequence
+open Chaow.Combinatorics
+open Chaow.Collections
+
+let prime = Prime()
+
+let solve A B P =
+    let mutable size = int (B - A + 1L)
+    let primes = prime.FromRange(P, B-A)
+    let set = DisjointSet()
+
+    for p in primes do
+        let start = ((A - 1L)/p + 1L)*p
+        for n in {start+p..p..B} do
+            if set.Union(start, n) then
+                size <- size - 1
+
+    size |> string
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let sw = Stopwatch.StartNew()
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let num = text.Split ' '
+        let A = int64 num.[0]
+        let B = int64 num.[1]
+        let P = int64 num.[2]
+        let answer = solve A B P
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+    printfn "%A" sw.Elapsed
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

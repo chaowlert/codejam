@@ -1,0 +1,122 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+open System.Threading.Tasks
+open System.Diagnostics
+
+let (<->) (x1, y1) (x2, y2) =
+    let deltaX = x1 - x2
+    let deltaY = y1 - y2
+    sqrt (deltaX*deltaX + deltaY*deltaY)
+
+let center = 0.0, 0.0
+
+let solve f R t r g =
+    let Rin = R - t - f
+    let start = -(r + f)
+    let r = (r + f)*2.0
+    let g = g - f*2.0
+    let rg = r + g
+
+    let calculateGap p len =
+        //calculate head
+        let num = floor ((p - start) / rg)
+        let headBlock = start + rg*num
+        let headTouch = if p - headBlock > r
+                        then 0.0
+                        else min (headBlock + r - p) len
+        let head = min (headBlock + rg - p) len
+
+        //calculate body & tail
+        let body = len - head
+        let bodySize = floor (body / rg)
+        let tail = body - rg*bodySize
+
+        //calculate gap & return
+        let headGap = head - headTouch
+        let bodyGap = g * bodySize
+        let tailGap = max 0.0 (tail-r)
+        headGap + bodyGap + tailGap
+
+    let touchString (x1,y1) (x2,y2) =
+        let len = x2 - x1
+        let gapH = calculateGap x1 len
+        let gapV = calculateGap y1 len
+        let untouch = (gapH * gapV) / (len * len)
+        1.0 - untouch
+
+    let rinMixRate = (r / rg) * 0.5 + 0.5
+    let getHitRate p1 p2 =
+        let a = center <-> p1
+        let b = center <-> p2
+        if b > R then
+            if a > R 
+            then (0.0, 0.0), false 
+            else (1.0, 0.5), true
+        elif b > Rin then
+            if a > Rin
+            then (1.0, 1.0), false
+            else (rinMixRate, 1.0), true
+        else
+            (touchString p1 p2, 1.0), false
+
+    let epsilon = 0.00000025 * R
+
+    let rec divide (x1,y1) (x2,y2) =
+        let xHalf = (x1 + x2) / 2.0
+        let yHalf = (y1 + y2) / 2.0
+        let pos1,area1 = conquer (x1,y1) (xHalf,yHalf)
+        let pos2,area2 = conquer (x1,yHalf) (xHalf,y2)
+        let pos3,area3 = conquer (xHalf,y1) (x2,yHalf)
+        let pos4,area4 = conquer (xHalf,yHalf) (x2,y2)
+        let area = area1 + area2 + area3 + area4
+        if area = 0.0
+        then 0.0, 0.0
+        else let pos = pos1*area1 + pos2*area2 + pos3*area3 + pos4*area4
+             pos/area, area/4.0
+
+    and conquer (x1,y1) (x2,y2) =
+        let hitRate,mix = getHitRate (x1,y1) (x2,y2)
+        if mix && x2-x1 > epsilon
+        then divide (x1,y1) (x2,y2)
+        else hitRate
+
+    let pop,_ = if g <= 0.0
+                then 1.0, 1.0
+                else conquer center (R,R)
+    sprintf "%.6f" pop
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let sw = Stopwatch.StartNew()
+    let cases = input.ReadLine() |> int
+    let tasks = List<Task<int*string>>(cases)
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let f = float split.[0]
+        let R = float split.[1]
+        let t = float split.[2]
+        let r = float split.[3]
+        let g = float split.[4]
+        let answer = async { return i, solve f R t r g } |> Async.StartAsTask
+        //answer.Wait()
+        tasks.Add(answer)
+
+    for task in tasks do
+        let i, answer = task.Result
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+    printfn "%A" sw.Elapsed
+
+    if Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

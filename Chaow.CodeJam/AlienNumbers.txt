@@ -1,0 +1,53 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let solve value txt1 txt2 =
+    
+    let txtToNum txt v =
+        let baseN = Array.length txt
+        let foldFn a b = a * baseN + Array.IndexOf(txt, b)
+        Seq.fold foldFn 0 v
+
+    let numToTxt txt v =
+        let baseN = Array.length txt
+        let unfoldFn = function
+            | -1 -> None
+            | n  -> match Math.DivRem(n, baseN) with
+                    | 0, r -> Some(r, -1)
+                    | d, r -> Some(r, d)
+        v |> Seq.unfold unfoldFn
+          |> Seq.map (Array.get txt)
+          |> Enumerable.Reverse
+          |> Seq.map string
+          |> String.Concat
+
+    value |> txtToNum txt1
+          |> numToTxt txt2
+
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let value = split.[0]
+        let txt1 = split.[1].ToCharArray()
+        let txt2 = split.[2].ToCharArray()
+        let answer = solve value txt1 txt2
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

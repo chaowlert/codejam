@@ -1,0 +1,58 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+let solve n A B C D x0 y0 M =
+    let unfoldFn (n, (x, y)) = 
+        match n with
+        | 0 -> None
+        | n -> let xN = (A*x + B) % M
+               let yN = (C*y + D) % M
+               Some((x, y), (n-1, (xN, yN)))
+
+    let trees = Seq.unfold unfoldFn (n, (x0, y0))
+
+    let buckets = trees |> Seq.groupBy (fun (x, y) -> (int x % 3)*3 + (int y % 3))
+                        |> Seq.map (fun (key, g) -> key, g.LongCount())
+                        |> Seq.sortBy fst
+                        |> Seq.cache
+
+    let sameBucketCount = buckets |> Seq.map (fun (key, cnt) -> cnt * (cnt-1L) * (cnt-2L) / 6L)
+                                  |> Seq.sum
+
+    let diffBucketCount = seq {
+                            for key1,cnt1 in buckets do
+                            for key2,cnt2 in buckets do
+                            if key1 < key2 then
+                            for key3,cnt3 in buckets do
+                            if key2 < key3 then
+                            if (key1+key2+key3) % 3 = 0 then
+                            if (key1/3 + key2/3 + key3/3) % 3 = 0 then
+                            yield cnt1 * cnt2 * cnt3
+                          } |> Seq.sum
+
+    sameBucketCount + diffBucketCount |> string
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let num = text.Split ' '
+        let [|n; A; B; C; D; x0; y0; M|] = Array.map int64 num
+        let answer = solve (int n) A B C D x0 y0 M
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

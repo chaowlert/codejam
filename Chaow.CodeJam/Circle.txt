@@ -1,0 +1,87 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+type EdgeString = { terminal:string Set; connections:string Set }
+module Edge =
+    let TryJoin b a =
+        let conn = Set.intersect a.terminal b.terminal
+        if conn = Set.empty
+        then None
+        else Some({ terminal = a.terminal + b.terminal - conn; connections = a.connections + b.connections + conn })
+
+let solve len set =
+    let rec fac n =
+        if n <= 1 
+        then 1
+        else n * fac (n-1) % 99010
+
+    let allCount = fac (len-1) / 2
+
+    let rec combin id = function
+        | 0   -> Seq.singleton List.empty
+        | cnt -> let collectFn i =
+                    let edge = Array.get set i
+                    let Validate it =
+                        Set.intersect it.connections edge.terminal = Set.empty &&
+                        (Set.count it.connections = len-2 || it.terminal <> edge.terminal)
+                    seq {
+                        for edges in combin (i+1) (cnt-1) do
+                        if Seq.forall Validate edges then
+                        let foldFn (edge,list) it =
+                            match Edge.TryJoin edge it with
+                            | None          -> edge,it::list
+                            | Some(newEdge) -> newEdge,list
+                        let newEdge,list = Seq.fold foldFn (edge,List.empty) edges
+                        yield newEdge::list
+                    }
+                 let finish = Array.length set - cnt
+                 Seq.collect collectFn {id..finish}
+
+    let sumFn i =
+        let sign = if i % 2 = 0 then -1 else 1
+        let allCount = fac (len-i-1) % 9901
+        let sumFnX edges =
+            let len = List.length edges
+            Seq.fold (fun last i -> last * 2 % 9901) 1 {2..len} % 9901
+
+        let x = combin 0 i |> Seq.toArray
+        let combCount = combin 0 i |> Seq.sumBy sumFnX
+        sign * allCount * combCount % 9901
+
+    let maxCombo = min (Array.length set) len
+    let forbidCount = Seq.sumBy sumFn {1..maxCombo} % 9901
+
+    let count = allCount - forbidCount
+    string ((count+9901) % 9901)
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let nums = text.Split ' '
+        let len = int nums.[0]
+        let forbid = int nums.[1]
+        let createFn i =
+            let text = input.ReadLine()
+            let nums = text.Split ' '
+            { terminal=Set.ofArray nums; connections=Set.empty }
+        let set = Array.init forbid createFn
+
+        let answer = solve len set
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

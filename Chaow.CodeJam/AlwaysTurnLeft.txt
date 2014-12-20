@@ -1,0 +1,96 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+[<Flags>]
+type Direction =
+    | None = 0
+    | North = 1
+    | South = 2
+    | West = 4
+    | East = 8
+
+let solve forward backward =
+    let turnLeft = function
+        | Direction.North -> Direction.West
+        | Direction.South -> Direction.East
+        | Direction.West  -> Direction.South
+        | Direction.East  -> Direction.North
+
+    let opposite = function
+        | Direction.North -> Direction.South
+        | Direction.South -> Direction.North
+        | Direction.West  -> Direction.East 
+        | Direction.East  -> Direction.West 
+
+    let turnRight = turnLeft >> opposite
+
+    let move (r, c) dir = 
+        match dir with
+        | Direction.North -> r - 1, c
+        | Direction.South -> r + 1, c
+        | Direction.West  -> r, c - 1
+        | Direction.East  -> r, c + 1
+
+    let rec replay cmd states dir = 
+        match cmd with
+        | [] -> states, dir
+        | 'L'::cmd -> replay cmd states (turnLeft dir)
+        | 'R'::cmd -> replay cmd states (turnRight dir)
+        | 'W'::cmd ->
+            let newList = 
+                let (point, wall)::tail = states
+                let newPoint = move point dir
+                let newState = newPoint, opposite dir
+                if wall = Direction.None then
+                    newState::tail
+                else
+                    let head = (point, wall ||| dir)
+                    newState::head::tail
+            replay cmd newList dir
+
+    let startPoint = [(-1, 0), Direction.None]
+    let (point, _)::tail, dir = replay (List.ofSeq forward) startPoint Direction.South
+
+    let returnPoint = (point, Direction.None)::tail
+    let _::tail2, _ = replay (List.ofSeq backward) returnPoint (opposite dir)
+
+    let mergeWalls (key, list) = 
+        key, list |> Seq.map snd
+                  |> Seq.fold (|||) Direction.None
+    let hex = sprintf "%x"
+    let createRows (key, list) = list |> Seq.sortBy fst
+                                      |> Seq.map (snd >> int >> hex)
+                                      |> String.Concat
+                                      |> (+) "\r\n"
+    tail2 |> Seq.groupBy fst
+          |> Seq.map mergeWalls
+          |> Seq.groupBy (fst >> fst)
+          |> Seq.sortBy fst
+          |> Seq.map createRows
+          |> String.Concat
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let text = input.ReadLine()
+        let split = text.Split ' '
+        let forward = split.[0]
+        let backward = split.[1]
+        let answer = solve forward backward
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 

@@ -1,0 +1,68 @@
+﻿open System
+open System.IO
+open System.Linq
+open System.Collections.Generic
+
+module Map =
+    let count (map:Map<_,_>) = map.Count
+
+let solve n custs =
+    let rec logic map custs = 
+        let custs = custs |> Seq.sortBy Map.count
+                          |> Seq.toList
+        match custs with
+        | [] -> Seq.singleton map
+        | head::tail ->
+            seq {
+                let prefs = head |> Map.toSeq
+                                 |> Seq.sortBy snd
+                for a, b in prefs do
+                let newMap = Map.add a b map
+                let notMatch choices =
+                    let item = Map.tryFind a choices
+                    item.IsNone || item.Value <> b
+                let newCusts = tail |> Seq.where notMatch
+                                    |> Seq.map (Map.remove a)
+                yield! logic newMap newCusts
+            }
+
+    let result = custs |> logic Map.empty
+                       |> Seq.truncate 1
+                       |> Seq.toList
+    match result with
+    | []       -> "IMPOSSIBLE"
+    | head::_  -> let createFn i = 
+                      match Map.tryFind (i+1) head with
+                      | None    -> "0"
+                      | Some(j) -> string (j - 1)
+                  let strs = Seq.init n createFn
+                  String.Join(" ", strs)
+
+[<EntryPoint>]
+let main argv = 
+    use input = new StreamReader(argv.[0])
+    use output = new StreamWriter(argv.[1])
+
+    let cases = input.ReadLine() |> int
+    for i = 1 to cases do
+        let n = input.ReadLine() |> int
+        let m = input.ReadLine() |> int
+        let createFn i =
+            let text = input.ReadLine()
+            let split = text.Split ' '
+            Seq.init (int split.[0]) (fun i -> int split.[i*2 + 1], int split.[i*2 + 2] + 1) 
+            |> Map.ofSeq
+        let custs = Seq.init m createFn |> Seq.toList
+
+        let answer = solve n custs
+
+        printfn "Case #%i: %s" i answer
+        fprintfn output "Case #%i: %s" i answer
+
+    input.Close()
+    output.Close()
+
+    if System.Diagnostics.Debugger.IsAttached then
+        Console.ReadLine() |> ignore
+
+    0 
